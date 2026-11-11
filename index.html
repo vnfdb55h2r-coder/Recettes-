@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Mes recettes">
+<meta name="theme-color" content="#faf6ef">
+<title>Mes recettes</title>
+<style>
+  :root {
+    --fond: #faf6ef;
+    --carte: #ffffff;
+    --texte: #2b2622;
+    --doux: #8a7f74;
+    --accent: #c0654a;
+    --ligne: #eadfd0;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0;
+    background: var(--fond);
+    color: var(--texte);
+    font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  header { padding: 28px 22px 8px; display: flex; justify-content: space-between; align-items: flex-end; }
+  h1 { font-family: Georgia, "Times New Roman", serif; font-weight: normal; font-size: 34px; margin: 0; letter-spacing: 0.3px; }
+  .menu-btn { background: none; border: none; color: var(--doux); font-size: 14px; padding: 6px 0; }
+  .filtres { display: flex; gap: 8px; overflow-x: auto; padding: 14px 22px 6px; scrollbar-width: none; }
+  .filtres::-webkit-scrollbar { display: none; }
+  .filtre {
+    flex: none; border: 1px solid var(--ligne); background: transparent; color: var(--doux);
+    padding: 8px 16px; border-radius: 999px; font-size: 14px;
+  }
+  .filtre.actif { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .grille { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 16px 22px 120px; }
+  .carte { background: var(--carte); border-radius: 14px; overflow: hidden; border: 1px solid var(--ligne); }
+  .carte .img { aspect-ratio: 1/1; background: #efe6d8 center/cover no-repeat; }
+  .carte .info { padding: 10px 12px 14px; }
+  .carte .nom { font-family: Georgia, serif; font-size: 16px; line-height: 1.25; }
+  .carte .cat { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--accent); margin-top: 6px; }
+  .vide { grid-column: 1 / -1; text-align: center; color: var(--doux); padding: 60px 20px; font-family: Georgia, serif; font-size: 18px; }
+  .plus {
+    position: fixed; right: 22px; bottom: calc(24px + env(safe-area-inset-bottom));
+    width: 58px; height: 58px; border-radius: 50%; border: none; background: var(--accent); color: #fff;
+    font-size: 32px; line-height: 1; box-shadow: 0 6px 18px rgba(192,101,74,0.35);
+  }
+  .ecran {
+    position: fixed; inset: 0; background: var(--fond); overflow-y: auto; display: none;
+    padding: calc(20px + env(safe-area-inset-top)) 22px 60px;
+  }
+  .ecran.ouvert { display: block; }
+  .retour { background: none; border: none; color: var(--accent); font-size: 16px; padding: 0 0 14px; }
+  .grande-photo { width: 100%; aspect-ratio: 4/3; border-radius: 16px; background: #efe6d8 center/cover no-repeat; margin-bottom: 18px; }
+  .ecran h2 { font-family: Georgia, serif; font-weight: normal; font-size: 30px; margin: 0 0 6px; }
+  .ecran .cat { font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--accent); margin-bottom: 18px; }
+  .texte-recette { white-space: pre-wrap; line-height: 1.6; font-size: 16px; }
+  label { display: block; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: var(--doux); margin: 18px 0 6px; }
+  input[type=text], textarea, select {
+    width: 100%; padding: 13px 14px; border: 1px solid var(--ligne); border-radius: 12px;
+    background: #fff; font-size: 16px; font-family: inherit; color: var(--texte);
+  }
+  textarea { min-height: 180px; resize: vertical; }
+  .photo-zone {
+    border: 1px dashed var(--doux); border-radius: 14px; aspect-ratio: 4/3; display: flex; align-items: center; justify-content: center;
+    color: var(--doux); background: #fff center/cover no-repeat; font-size: 15px;
+  }
+  .btn { display: block; width: 100%; padding: 15px; border-radius: 999px; border: none; font-size: 16px; margin-top: 22px; }
+  .btn.principal { background: var(--accent); color: #fff; }
+  .btn.secondaire { background: transparent; border: 1px solid var(--ligne); color: var(--texte); }
+  .btn.danger { background: transparent; color: #b03a2e; }
+  .actions { display: flex; gap: 10px; }
+  .actions .btn { margin-top: 26px; }
+  input[type=file] { display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Mes recettes</h1>
+  <button class="menu-btn" id="btnSauvegarde">Sauvegarde</button>
+</header>
+
+<div class="filtres" id="filtres"></div>
+<div class="grille" id="grille"></div>
+<button class="plus" id="btnPlus" aria-label="Ajouter une recette">+</button>
+
+<!-- Écran lecture -->
+<div class="ecran" id="ecranLecture">
+  <button class="retour" id="retourLecture">‹ Retour</button>
+  <div class="grande-photo" id="lecPhoto"></div>
+  <h2 id="lecNom"></h2>
+  <div class="cat" id="lecCat"></div>
+  <div class="texte-recette" id="lecTexte"></div>
+  <div class="actions">
+    <button class="btn secondaire" id="btnModifier">Modifier</button>
+    <button class="btn danger" id="btnSupprimer">Supprimer</button>
+  </div>
+</div>
+
+<!-- Écran édition -->
+<div class="ecran" id="ecranEdition">
+  <button class="retour" id="retourEdition">‹ Annuler</button>
+  <h2 id="titreEdition">Nouvelle recette</h2>
+  <label>Photo</label>
+  <label class="photo-zone" id="photoZone" style="margin:0;text-transform:none;letter-spacing:0">
+    Ajouter une photo
+    <input type="file" accept="image/*" id="inputPhoto">
+  </label>
+  <label>Nom</label>
+  <input type="text" id="inNom" placeholder="Ex : Tarte aux pommes">
+  <label>Catégorie</label>
+  <select id="inCat">
+    <option>Plat</option>
+    <option>Dessert</option>
+    <option>Cocktail</option>
+    <option>Apéritif</option>
+  </select>
+  <label>Recette</label>
+  <textarea id="inTexte" placeholder="Ingrédients, étapes... (facultatif)"></textarea>
+  <button class="btn principal" id="btnEnregistrer">Enregistrer</button>
+</div>
+
+<!-- Écran sauvegarde -->
+<div class="ecran" id="ecranSauvegarde">
+  <button class="retour" id="retourSauvegarde">‹ Retour</button>
+  <h2>Sauvegarde</h2>
+  <p style="color:var(--doux);line-height:1.5">Exporte toutes tes recettes dans un fichier pour les garder en sécurité, ou restaure-les depuis un fichier.</p>
+  <button class="btn principal" id="btnExport">Exporter mes recettes</button>
+  <label class="btn secondaire" style="text-align:center">
+    Restaurer depuis un fichier
+    <input type="file" accept=".json,application/json" id="inputImport">
+  </label>
+</div>
+
+<script>
+  var CATEGORIES = ["Tout", "Plat", "Dessert", "Cocktail", "Apéritif"];
+  var CLE = "mesRecettes_v1";
+  var recettes = JSON.parse(localStorage.getItem(CLE) || "[]");
+  var filtreActif = "Tout";
+  var recetteOuverte = null;
+  var photoCourante = "";
+
+  function sauver() { localStorage.setItem(CLE, JSON.stringify(recettes)); }
+  function $(id) { return document.getElementById(id); }
+  function ouvrir(id) { $(id).classList.add("ouvert"); }
+  function fermer(id) { $(id).classList.remove("ouvert"); }
+
+  function afficherFiltres() {
+    $("filtres").innerHTML = "";
+    CATEGORIES.forEach(function (c) {
+      var b = document.createElement("button");
+      b.className = "filtre" + (c === filtreActif ? " actif" : "");
+      b.textContent = c;
+      b.onclick = function () { filtreActif = c; afficherFiltres(); afficherListe(); };
+      $("filtres").appendChild(b);
+    });
+  }
+
+  function afficherListe() {
+    var g = $("grille");
+    g.innerHTML = "";
+    var liste = recettes.filter(function (r) { return filtreActif === "Tout" || r.categorie === filtreActif; });
+    if (liste.length === 0) {
+      g.innerHTML = '<div class="vide">Aucune recette pour le moment.<br>Touche le + pour commencer.</div>';
+      return;
+    }
+    liste.forEach(function (r) {
+      var c = document.createElement("div");
+      c.className = "carte";
+      var img = document.createElement("div");
+      img.className = "img";
+      if (r.photo) img.style.backgroundImage = "url(" + r.photo + ")";
+      var info = document.createElement("div");
+      info.className = "info";
+      var nom = document.createElement("div");
+      nom.className = "nom";
+      nom.textContent = r.nom;
+      var cat = document.createElement("div");
+      cat.className = "cat";
+      cat.textContent = r.categorie;
+      info.appendChild(nom);
+      info.appendChild(cat);
+      c.appendChild(img);
+      c.appendChild(info);
+      c.onclick = function () { lire(r.id); };
+      g.appendChild(c);
+    });
+  }
+
+  function lire(id) {
+    var r = recettes.filter(function (x) { return x.id === id; })[0];
+    if (!r) return;
+    recetteOuverte = r;
+    $("lecPhoto").style.display = r.photo ? "block" : "none";
+    $("lecPhoto").style.backgroundImage = r.photo ? "url(" + r.photo + ")" : "none";
+    $("lecNom").textContent = r.nom;
+    $("lecCat").textContent = r.categorie;
+    $("lecTexte").textContent = r.texte || "Pas encore de recette écrite.";
+    ouvrir("ecranLecture");
+  }
+
+  function editer(r) {
+    recetteOuverte = r || null;
+    $("titreEdition").textContent = r ? "Modifier la recette" : "Nouvelle recette";
+    $("inNom").value = r ? r.nom : "";
+    $("inCat").value = r ? r.categorie : "Plat";
+    $("inTexte").value = r ? r.texte : "";
+    photoCourante = r ? r.photo : "";
+    majPhotoZone();
+    ouvrir("ecranEdition");
+  }
+
+  function majPhotoZone() {
+    var z = $("photoZone");
+    z.style.backgroundImage = photoCourante ? "url(" + photoCourante + ")" : "none";
+    z.firstChild.textContent = photoCourante ? "" : "Ajouter une photo";
+  }
+
+  function reduireImage(fichier, callback) {
+    var lecteur = new FileReader();
+    lecteur.onload = function (e) {
+      var img = new Image();
+      img.onload = function () {
+        var max = 900;
+        var ratio = Math.min(1, max / Math.max(img.width, img.height));
+        var cv = document.createElement("canvas");
+        cv.width = Math.round(img.width * ratio);
+        cv.height = Math.round(img.height * ratio);
+        cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+        callback(cv.toDataURL("image/jpeg", 0.8));
+      };
+      img.src = e.target.result;
+    };
+    lecteur.readAsDataURL(fichier);
+  }
+
+  $("inputPhoto").onchange = function (e) {
+    var f = e.target.files[0];
+    if (!f) return;
+    reduireImage(f, function (data) { photoCourante = data; majPhotoZone(); });
+  };
+
+  $("btnPlus").onclick = function () { editer(null); };
+  $("retourLecture").onclick = function () { fermer("ecranLecture"); };
+  $("retourEdition").onclick = function () { fermer("ecranEdition"); };
+  $("btnModifier").onclick = function () { fermer("ecranLecture"); editer(recetteOuverte); };
+
+  $("btnSupprimer").onclick = function () {
+    if (!confirm("Supprimer cette recette ?")) return;
+    recettes = recettes.filter(function (x) { return x.id !== recetteOuverte.id; });
+    sauver();
+    fermer("ecranLecture");
+    afficherListe();
+  };
+
+  $("btnEnregistrer").onclick = function () {
+    var nom = $("inNom").value.trim();
+    if (!nom) { alert("Donne un nom à ta recette."); return; }
+    var donnees = { nom: nom, categorie: $("inCat").value, texte: $("inTexte").value, photo: photoCourante };
+    if (recetteOuverte) {
+      Object.assign(recetteOuverte, donnees);
+    } else {
+      donnees.id = Date.now();
+      recettes.unshift(donnees);
+    }
+    sauver();
+    fermer("ecranEdition");
+    afficherListe();
+  };
+
+  $("btnSauvegarde").onclick = function () { ouvrir("ecranSauvegarde"); };
+  $("retourSauvegarde").onclick = function () { fermer("ecranSauvegarde"); };
+
+  $("btnExport").onclick = function () {
+    var blob = new Blob([JSON.stringify(recettes)], { type: "application/json" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "mes-recettes.json";
+    a.click();
+  };
+
+  $("inputImport").onchange = function (e) {
+    var f = e.target.files[0];
+    if (!f) return;
+    var l = new FileReader();
+    l.onload = function (ev) {
+      try {
+        var data = JSON.parse(ev.target.result);
+        if (!Array.isArray(data)) throw 0;
+        recettes = data;
+        sauver();
+        afficherListe();
+        fermer("ecranSauvegarde");
+        alert("Recettes restaurées.");
+      } catch (err) {
+        alert("Ce fichier n'est pas valide.");
+      }
+    };
+    l.readAsText(f);
+  };
+
+  afficherFiltres();
+  afficherListe();
+</script>
+</body>
+</html>
