@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="fr">
-<head> 
+<head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Mes recettes">
-  <link rel="apple-touch-icon" href="IMG_2540.jpeg">
+<meta name="apple-mobile-web-app-title" content="Miam">
+<link rel="apple-touch-icon" href="IMG_2540.jpeg">
 <meta name="theme-color" content="#faf6ef">
 <title>Mes recettes</title>
 <style>
@@ -73,23 +73,25 @@
   .btn.principal { background: var(--accent); color: #fff; }
   .btn.secondaire { background: transparent; border: 1px solid var(--ligne); color: var(--texte); }
   .btn.danger { background: transparent; color: #b03a2e; }
+  .btn:disabled { opacity: 0.5; }
   .actions { display: flex; gap: 10px; }
   .actions .btn { margin-top: 26px; }
   input[type=file] { display: none; }
+  .message { text-align: center; color: var(--doux); font-size: 13px; padding: 4px 22px 0; min-height: 18px; }
 </style>
 </head>
 <body>
 
 <header>
   <h1>Mes recettes</h1>
-  <button class="menu-btn" id="btnSauvegarde">Sauvegarde</button>
+  <button class="menu-btn" id="btnActualiser">Actualiser</button>
 </header>
+<div class="message" id="message"></div>
 
 <div class="filtres" id="filtres"></div>
 <div class="grille" id="grille"></div>
 <button class="plus" id="btnPlus" aria-label="Ajouter une recette">+</button>
 
-<!-- Écran lecture -->
 <div class="ecran" id="ecranLecture">
   <button class="retour" id="retourLecture">‹ Retour</button>
   <div class="grande-photo" id="lecPhoto"></div>
@@ -102,7 +104,6 @@
   </div>
 </div>
 
-<!-- Écran édition -->
 <div class="ecran" id="ecranEdition">
   <button class="retour" id="retourEdition">‹ Annuler</button>
   <h2 id="titreEdition">Nouvelle recette</h2>
@@ -125,30 +126,39 @@
   <button class="btn principal" id="btnEnregistrer">Enregistrer</button>
 </div>
 
-<!-- Écran sauvegarde -->
-<div class="ecran" id="ecranSauvegarde">
-  <button class="retour" id="retourSauvegarde">‹ Retour</button>
-  <h2>Sauvegarde</h2>
-  <p style="color:var(--doux);line-height:1.5">Exporte toutes tes recettes dans un fichier pour les garder en sécurité, ou restaure-les depuis un fichier.</p>
-  <button class="btn principal" id="btnExport">Exporter mes recettes</button>
-  <label class="btn secondaire" style="text-align:center">
-    Restaurer depuis un fichier
-    <input type="file" accept=".json,application/json" id="inputImport">
-  </label>
-</div>
-
 <script>
+  var ADRESSE = "https://script.google.com/macros/s/AKfycbyM494J9SV85TCmcuG4ky_l7I7NM8RQdy_UDcW9Ij2b3zJPC5H36GkNxA0NCEXtL2zR0g/exec";
   var CATEGORIES = ["Tout", "Cocktail", "Apéritif", "Plat", "Dessert"];
-  var CLE = "mesRecettes_v1";
-  var recettes = JSON.parse(localStorage.getItem(CLE) || "[]");
+  var recettes = [];
   var filtreActif = "Tout";
   var recetteOuverte = null;
   var photoCourante = "";
+  var photoBase64 = "";
 
-  function sauver() { localStorage.setItem(CLE, JSON.stringify(recettes)); }
   function $(id) { return document.getElementById(id); }
   function ouvrir(id) { $(id).classList.add("ouvert"); }
   function fermer(id) { $(id).classList.remove("ouvert"); }
+  function dire(t) { $("message").textContent = t || ""; }
+
+  function charger() {
+    dire("Chargement...");
+    fetch(ADRESSE)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        recettes = data.reverse();
+        dire("");
+        afficherListe();
+      })
+      .catch(function () { dire("Impossible de charger les recettes. Vérifie ta connexion."); });
+  }
+
+  function envoyer(objet) {
+    return fetch(ADRESSE, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(objet)
+    }).then(function (r) { return r.json(); });
+  }
 
   function afficherFiltres() {
     $("filtres").innerHTML = "";
@@ -193,7 +203,7 @@
   }
 
   function lire(id) {
-    var r = recettes.filter(function (x) { return x.id === id; })[0];
+    var r = recettes.filter(function (x) { return String(x.id) === String(id); })[0];
     if (!r) return;
     recetteOuverte = r;
     $("lecPhoto").style.display = r.photo ? "block" : "none";
@@ -208,9 +218,10 @@
     recetteOuverte = r || null;
     $("titreEdition").textContent = r ? "Modifier la recette" : "Nouvelle recette";
     $("inNom").value = r ? r.nom : "";
-    $("inCat").value = r ? r.categorie : "Plat";
+    $("inCat").value = r ? r.categorie : "Cocktail";
     $("inTexte").value = r ? r.texte : "";
-    photoCourante = r ? r.photo : "";
+    photoCourante = r ? (r.photo || "") : "";
+    photoBase64 = "";
     majPhotoZone();
     ouvrir("ecranEdition");
   }
@@ -242,70 +253,58 @@
   $("inputPhoto").onchange = function (e) {
     var f = e.target.files[0];
     if (!f) return;
-    reduireImage(f, function (data) { photoCourante = data; majPhotoZone(); });
+    reduireImage(f, function (data) {
+      photoCourante = data;
+      photoBase64 = data.split(",")[1];
+      majPhotoZone();
+    });
   };
 
   $("btnPlus").onclick = function () { editer(null); };
+  $("btnActualiser").onclick = charger;
   $("retourLecture").onclick = function () { fermer("ecranLecture"); };
   $("retourEdition").onclick = function () { fermer("ecranEdition"); };
   $("btnModifier").onclick = function () { fermer("ecranLecture"); editer(recetteOuverte); };
 
   $("btnSupprimer").onclick = function () {
     if (!confirm("Supprimer cette recette ?")) return;
-    recettes = recettes.filter(function (x) { return x.id !== recetteOuverte.id; });
-    sauver();
-    fermer("ecranLecture");
-    afficherListe();
+    dire("Suppression...");
+    envoyer({ action: "supprimer", id: recetteOuverte.id })
+      .then(function () { fermer("ecranLecture"); charger(); })
+      .catch(function () { dire("La suppression a échoué, réessaie."); });
   };
 
   $("btnEnregistrer").onclick = function () {
     var nom = $("inNom").value.trim();
     if (!nom) { alert("Donne un nom à ta recette."); return; }
-    var donnees = { nom: nom, categorie: $("inCat").value, texte: $("inTexte").value, photo: photoCourante };
-    if (recetteOuverte) {
-      Object.assign(recetteOuverte, donnees);
-    } else {
-      donnees.id = Date.now();
-      recettes.unshift(donnees);
-    }
-    sauver();
-    fermer("ecranEdition");
-    afficherListe();
-  };
-
-  $("btnSauvegarde").onclick = function () { ouvrir("ecranSauvegarde"); };
-  $("retourSauvegarde").onclick = function () { fermer("ecranSauvegarde"); };
-
-  $("btnExport").onclick = function () {
-    var blob = new Blob([JSON.stringify(recettes)], { type: "application/json" });
-    var a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "mes-recettes.json";
-    a.click();
-  };
-
-  $("inputImport").onchange = function (e) {
-    var f = e.target.files[0];
-    if (!f) return;
-    var l = new FileReader();
-    l.onload = function (ev) {
-      try {
-        var data = JSON.parse(ev.target.result);
-        if (!Array.isArray(data)) throw 0;
-        recettes = data;
-        sauver();
-        afficherListe();
-        fermer("ecranSauvegarde");
-        alert("Recettes restaurées.");
-      } catch (err) {
-        alert("Ce fichier n'est pas valide.");
-      }
+    var bouton = $("btnEnregistrer");
+    bouton.disabled = true;
+    bouton.textContent = "Enregistrement...";
+    var donnees = {
+      action: "enregistrer",
+      id: recetteOuverte ? recetteOuverte.id : String(Date.now()),
+      nom: nom,
+      categorie: $("inCat").value,
+      texte: $("inTexte").value,
+      photo: recetteOuverte && !photoBase64 ? (recetteOuverte.photo || "") : "",
+      photoBase64: photoBase64
     };
-    l.readAsText(f);
+    envoyer(donnees)
+      .then(function () {
+        bouton.disabled = false;
+        bouton.textContent = "Enregistrer";
+        fermer("ecranEdition");
+        charger();
+      })
+      .catch(function () {
+        bouton.disabled = false;
+        bouton.textContent = "Enregistrer";
+        alert("L'enregistrement a échoué, réessaie.");
+      });
   };
 
   afficherFiltres();
-  afficherListe();
+  charger();
 </script>
 </body>
 </html>
